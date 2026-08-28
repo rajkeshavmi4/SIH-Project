@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PolarRoute AI — Antarctic Decision Support System</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      background-color: #090d16;
+      color: #c9d1d9;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    #map {
+      height: 100%;
+      width: 100%;
+      background: #05080f;
+    }
+    .tactical-border {
+      border: 1px solid #1f293d;
+    }
+    .tactical-panel {
+      background: #0d131f;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #090d16; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
+  </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden select-none">
+
+  <!-- Tactical Header -->
+  <header class="tactical-panel tactical-border border-t-0 border-x-0 px-5 py-2.5 flex items-center justify-between z-20">
+    <div class="flex items-center space-x-3">
+      <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 px-2 py-1 rounded">
+        <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+        <span class="text-[11px] font-mono text-slate-300 uppercase tracking-widest font-semibold">ECDIS POLAR-CORE</span>
+      </div>
+      <span class="text-slate-600 font-mono">|</span>
+      <h1 class="text-sm font-bold tracking-wider text-slate-100 uppercase font-mono">PolarRoute AI <span class="text-cyan-400 text-xs font-normal">v1.0.4-MVP</span></h1>
+    </div>
+
+    <div class="flex items-center gap-4 text-xs font-mono">
+      <div class="flex items-center gap-2">
+        <span class="text-slate-400">ZONE:</span>
+        <span class="text-slate-200">ANTARCTICA (>55°S)</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-slate-400">DATA MODEL:</span>
+        <span class="text-amber-400">DETERMINISTIC DRIFT</span>
+      </div>
+      <div class="bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 text-[10px]">
+        NOAA SIMULATOR ACTIVE
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Viewport -->
+  <div class="flex-1 flex relative overflow-hidden">
+    
+    <!-- Left Tactical Controls & Intelligence Panel -->
+    <aside class="w-[420px] tactical-panel tactical-border border-y-0 border-l-0 z-10 flex flex-col justify-between overflow-y-auto p-4 space-y-4">
+      
+      <div class="space-y-4">
+        <!-- Section Header -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <span class="text-xs font-mono font-semibold uppercase text-cyan-400 tracking-wider">Mission Input Parameters</span>
+          <span class="text-[10px] font-mono text-slate-400">SOLAS CH-V COMPLIANT</span>
+        </div>
+
+        <!-- Form Elements -->
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="font-mono text-slate-400 block mb-1">DEPARTURE HARBOR</label>
+            <select id="startSelect" class="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-200 font-mono focus:border-cyan-500 focus:outline-none">
+              <option value="-53.1,-70.9">Punta Arenas, Chile (53.1°S, 70.9°W)</option>
+              <option value="-54.8,-68.3">Ushuaia, Argentina (54.8°S, 68.3°W)</option>
+              <option value="-43.5,172.6">Lyttelton / Christchurch (43.5°S, 172.6°E)</option>
+              <option value="-33.9,18.4">Cape Town Harbor (33.9°S, 18.4°E)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="font-mono text-slate-400 block mb-1">POLAR DESTINATION</label>
+            <select id="destSelect" class="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-200 font-mono focus:border-cyan-500 focus:outline-none">
+              <option value="-64.8,-64.1">Palmer Station (64.8°S, 64.1°W)</option>
+              <option value="-77.8,166.7">McMurdo Station (77.8°S, 166.7°E)</option>
+              <option value="-69.4,76.4">Zhongshan Station (69.4°S, 76.4°E)</option>
+              <option value="-70.7,-8.3">Neumayer III Station (70.7°S, 8.3°W)</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="font-mono text-slate-400 block mb-1">DEPARTURE DATE</label>
+              <input id="depDate" type="date" value="2026-11-20" class="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-slate-200 font-mono focus:border-cyan-500 focus:outline-none" />
+            </div>
+            <div>
+              <label class="font-mono text-slate-400 block mb-1">POLAR CLASS</label>
+              <select id="vesselSelect" class="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-slate-200 font-mono focus:border-cyan-500 focus:outline-none">
+                <option>Polar Class 1 (Heavy)</option>
+                <option selected>Polar Class 4 (Medium)</option>
+                <option>Standard Cargo (Ice 1C)</option>
+              </select>
+            </div>
+          </div>
+
+          <button id="calcBtn" onclick="runOptimization()" class="w-full py-2.5 mt-2 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold font-mono uppercase tracking-wider rounded transition flex items-center justify-center gap-2">
+            <span>Calculate Navigation Profiles</span>
+          </button>
+        </div>
+
+        <!-- Dynamic Results Section -->
+        <div id="routeResults" class="space-y-3 pt-2 border-t border-slate-800 hidden">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono font-semibold uppercase text-cyan-400 tracking-wider">Multi-Objective Solutions</span>
+            <span class="text-[10px] text-slate-400 font-mono">3 PROFILES</span>
+          </div>
+
+          <!-- Safest Route Card -->
+          <div id="safestCard" class="p-3 rounded bg-slate-950 border border-emerald-500/40 cursor-pointer hover:border-emerald-400 transition space-y-2" onclick="highlightRoute('safest')">
+            <div class="flex justify-between items-center">
+              <span class="text-[11px] font-mono font-bold text-emerald-400 uppercase tracking-wider">● Profile: Safest Corridor</span>
+              <span id="safestRisk" class="text-xs font-mono font-bold text-emerald-400"></span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-[11px] font-mono bg-slate-900/90 p-2 rounded border border-slate-800/80">
+              <div><span class="text-slate-400 block text-[9px]">DIST</span><span id="safestDist" class="text-slate-200 font-bold"></span></div>
+              <div><span class="text-slate-400 block text-[9px]">TIME</span><span id="safestTime" class="text-slate-200 font-bold"></span></div>
+              <div><span class="text-slate-400 block text-[9px]">HFO BURN</span><span id="safestFuel" class="text-slate-200 font-bold"></span></div>
+            </div>
+            <p id="safestWhy" class="text-[11px] text-slate-300 leading-normal border-l-2 border-emerald-500 pl-2"></p>
+          </div>
+
+          <!-- Balanced Route Card -->
+          <div id="balancedCard" class="p-3 rounded bg-slate-950 border border-amber-500/30 cursor-pointer hover:border-amber-400 transition space-y-2" onclick="highlightRoute('balanced')">
+            <div class="flex justify-between items-center">
+              <span class="text-[11px] font-mono font-bold text-amber-400 uppercase tracking-wider">● Profile: Balanced Transit</span>
+              <span id="balancedRisk" class="text-xs font-mono font-bold text-amber-400"></span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-[11px] font-mono bg-slate-900/90 p-2 rounded border border-slate-800/80">
+              <div><span class="text-slate-400 block text-[9px]">DIST</span><span id="balancedDist" class="text-slate-200 font-bold"></span></div>
+              <div><span class="text-slate-400 block text-[9px]">TIME</span><span id="balancedTime" class="text-slate-200 font-bold"></span></div>
+              <div><span class="text-slate-400 block text-[9px]">HFO BURN</span><span id="balancedFuel" class="text-slate-200 font-bold"></span></div>
+            </div>
+            <p id="balancedWhy" class="text-[11px] text-slate-300 leading-normal border-l-2 border-amber-500 pl-2"></p>
+          </div>
+
+          <!-- Fuel Efficient Card -->
+          <div id="efficientCard" class="p-3 rounded bg-slate-950 border border-red-500/30 cursor-pointer hover:border-red-400 transition space-y-2" onclick="highlightRoute('fuel_efficient')">
+            <div class="flex justify-between items-center">
+              <span class="text-[11px] font-mono font-bold text-red-400 uppercase tracking-wider">● Profile: Direct Geodesic</span>
+              <span id="efficientRisk" class="text-xs font-mono font-bold text-red-400"></span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-[11px] font-mono bg-slate-900/90 p-2 rounded border border-slate-800/80">
+              <div><span class="text-slate-400 block text-[9px]">DIST</span><span id="efficientDist" class="text-slate-200 font-bold"></span></div>
+              <div><span class="text-slate-400 block text-[9px]">TIME</span><span id="efficientTime" class="text-slate-200 font-bold"></span></div>
+              <div><span class="text-slate-400 block text-[9px]">HFO BURN</span><span id="efficientFuel" class="text-slate-200 font-bold"></span></div>
+            </div>
+            <p id="efficientWhy" class="text-[11px] text-slate-300 leading-normal border-l-2 border-red-500 pl-2"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Risk Matrix Footer -->
+      <div class="text-[10px] font-mono text-slate-400 bg-slate-950 p-2 rounded tactical-border">
+        <div class="text-slate-300 font-bold mb-0.5">ALGORITHM RISK WEIGHTINGS</div>
+        R = 0.5(IceConc) + 0.3(IcebergProx) + 0.2(WeatherBelt)
+      </div>
+    </aside>
+
+    <!-- Map View -->
+    <main class="flex-1 relative">
+      <div id="map"></div>
+      
+      <!-- Tactical Map Overlay Legend -->
+      <div class="absolute bottom-5 right-5 tactical-panel tactical-border p-3.5 rounded-lg text-xs space-y-2 z-[1000] shadow-xl">
+        <div class="font-mono font-bold text-[11px] text-slate-300 uppercase tracking-wider border-b border-slate-800 pb-1">Navigation Layers</div>
+        <div class="flex items-center space-x-2"><span class="w-3.5 h-1 bg-emerald-500 rounded"></span><span class="font-mono text-slate-300">Safest Route</span></div>
+        <div class="flex items-center space-x-2"><span class="w-3.5 h-1 bg-amber-400 rounded"></span><span class="font-mono text-slate-300">Balanced Route</span></div>
+        <div class="flex items-center space-x-2"><span class="w-3.5 h-1 bg-red-500 rounded"></span><span class="font-mono text-slate-300">Direct Route</span></div>
+        <div class="flex items-center space-x-2"><span class="w-3 h-3 bg-cyan-500/30 border border-cyan-400 rounded"></span><span class="font-mono text-slate-300">Pack Ice Polygon</span></div>
+        <div class="flex items-center space-x-2"><span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span><span class="font-mono text-slate-300">Tracked Iceberg + 72h Drift</span></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Loading Sequence Modal -->
+  <div id="loadingModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="tactical-panel tactical-border p-6 rounded-lg w-96 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+        <span class="text-xs font-mono font-bold text-cyan-400 uppercase tracking-wider">A* Polar Lattice Solver</span>
+        <span class="animate-spin text-cyan-400 text-sm">◷</span>
+      </div>
+      <div class="space-y-2">
+        <p id="loadingStep" class="text-xs font-mono text-slate-200">Initializing calculation grid...</p>
+        <div class="w-full bg-slate-900 h-1.5 rounded overflow-hidden">
+          <div id="loadingBar" class="bg-cyan-500 h-full w-0 transition-all duration-300"></div>
+        </div>
+      </div>
+      <div class="text-[10px] font-mono text-slate-400">Evaluating multi-parameter heuristic across Drake Passage & Southern Ocean grids.</div>
+    </div>
+  </div>
+
+  <script>
+    let map, routeLayers = {}, envLayers = L.layerGroup();
+
+    function initMap() {
+      map = L.map('map', {
+        center: [-65.0, -45.0],
+        zoom: 3,
+        minZoom: 2,
+        maxZoom: 8
+      });
+
+      // Pure dark canvas (Esri Dark Gray - No API Key, No Watermark)
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri, DeLorme, NAVTEQ',
+        maxZoom: 16
+      }).addTo(map);
+
+      // Boundaries and labels overlay
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '',
+        maxZoom: 16
+      }).addTo(map);
+
+      envLayers.addTo(map);
+      loadEnvironment();
+    }
+
+    async function loadEnvironment() {
+      try {
+        const res = await fetch('/api/environment/layers');
+        const data = await res.json();
+        
+        envLayers.clearLayers();
+
+        // Sea ice concentration polygons
+        L.geoJSON(data.ice_zones, {
+          style: function(feat) {
+            return {
+              color: '#38bdf8',
+              fillColor: '#0284c7',
+              fillOpacity: feat.properties.risk * 0.35,
+              weight: 1,
+              dashArray: '2, 4'
+            };
+          },
+          onEachFeature: function(feat, layer) {
+            layer.bindPopup(`<div class="font-mono text-xs"><b>${feat.properties.name}</b><br/>Severity: ${(feat.properties.risk * 100).toFixed(0)}%</div>`);
+          }
+        }).addTo(envLayers);
+
+        // Iceberg markers and drift lines
+        data.icebergs.forEach(b => {
+          const bergMarker = L.circleMarker([b.lat, b.lon], {
+            radius: 5,
+            fillColor: '#f43f5e',
+            color: '#ffffff',
+            weight: 1.5,
+            fillOpacity: 1
+          }).bindPopup(`<div class="font-mono text-xs"><b>ID: ${b.id}</b><br/>Area: ${b.size_km2} km²<br/>Drift: ${b.speed_knots} kts @ ${b.drift_dir}°</div>`);
+          
+          envLayers.addLayer(bergMarker);
+
+          const trajLatLngs = b.trajectory.map(pt => [pt[1], pt[0]]);
+          const trajLine = L.polyline(trajLatLngs, {
+            color: '#fb7185',
+            weight: 1.5,
+            dashArray: '3, 4',
+            opacity: 0.85
+          });
+          envLayers.addLayer(trajLine);
+        });
+
+      } catch (e) {
+        console.error("Failed to load environment layers", e);
+      }
+    }
+
+    async function runOptimization() {
+      const startVal = document.getElementById('startSelect').value.split(',');
+      const destVal = document.getElementById('destSelect').value.split(',');
+      const vessel = document.getElementById('vesselSelect').value;
+      const depDate = document.getElementById('depDate').value;
+
+      const modal = document.getElementById('loadingModal');
+      const stepTxt = document.getElementById('loadingStep');
+      const bar = document.getElementById('loadingBar');
+      modal.classList.remove('hidden');
+
+      const steps = [
+        { text: "Analyzing sea ice concentration...", width: "25%" },
+        { text: "Tracking iceberg drift trajectories...", width: "50%" },
+        { text: "Calculating environmental risk matrix...", width: "75%" },
+        { text: "Optimizing multi-profile pathways...", width: "100%" }
+      ];
+
+      for (let i = 0; i < steps.length; i++) {
+        stepTxt.innerText = steps[i].text;
+        bar.style.width = steps[i].width;
+        await new Promise(r => setTimeout(r, 280));
+      }
+
+      try {
+        const payload = {
+          start_lat: parseFloat(startVal[0]),
+          start_lon: parseFloat(startVal[1]),
+          dest_lat: parseFloat(destVal[0]),
+          dest_lon: parseFloat(destVal[1]),
+          departure_date: depDate,
+          vessel_type: vessel
+        };
+
+        const res = await fetch('/api/routes/calculate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        modal.classList.add('hidden');
+        renderRoutes(data.routes);
+
+      } catch (err) {
+        modal.classList.add('hidden');
+        alert("Route calculation failed.");
+      }
+    }
+
+    function renderRoutes(routes) {
+      Object.values(routeLayers).forEach(l => map.removeLayer(l));
+      routeLayers = {};
+
+      const configs = {
+        safest: { color: '#10b981', weight: 4 },
+        balanced: { color: '#f59e0b', weight: 3.5 },
+        fuel_efficient: { color: '#ef4444', weight: 3 }
+      };
+
+      for (const [key, r] of Object.entries(routes)) {
+        const latlngs = r.waypoints.map(w => [w[0], w[1]]);
+        const poly = L.polyline(latlngs, {
+          color: configs[key].color,
+          weight: configs[key].weight,
+          opacity: 0.95
+        }).addTo(map);
+        routeLayers[key] = poly;
+      }
+
+      document.getElementById('routeResults').classList.remove('hidden');
+
+      // Populate Safest
+      document.getElementById('safestRisk').innerText = `${routes.safest.overall_risk_score}% RISK`;
+      document.getElementById('safestDist').innerText = `${routes.safest.distance_nm} NM`;
+      document.getElementById('safestTime').innerText = `${routes.safest.estimated_time_days} d`;
+      document.getElementById('safestFuel').innerText = `${routes.safest.fuel_consumption_mt} MT`;
+      document.getElementById('safestWhy').innerText = `${routes.safest.explanation}`;
+
+      // Populate Balanced
+      document.getElementById('balancedRisk').innerText = `${routes.balanced.overall_risk_score}% RISK`;
+      document.getElementById('balancedDist').innerText = `${routes.balanced.distance_nm} NM`;
+      document.getElementById('balancedTime').innerText = `${routes.balanced.estimated_time_days} d`;
+      document.getElementById('balancedFuel').innerText = `${routes.balanced.fuel_consumption_mt} MT`;
+      document.getElementById('balancedWhy').innerText = `${routes.balanced.explanation}`;
+
+      // Populate Fuel Efficient
+      document.getElementById('efficientRisk').innerText = `${routes.fuel_efficient.overall_risk_score}% RISK`;
+      document.getElementById('efficientDist').innerText = `${routes.fuel_efficient.distance_nm} NM`;
+      document.getElementById('efficientTime').innerText = `${routes.fuel_efficient.estimated_time_days} d`;
+      document.getElementById('efficientFuel').innerText = `${routes.fuel_efficient.fuel_consumption_mt} MT`;
+      document.getElementById('efficientWhy').innerText = `${routes.fuel_efficient.explanation}`;
+
+      map.fitBounds(routeLayers.safest.getBounds(), { padding: [60, 60] });
+    }
+
+    function highlightRoute(selectedKey) {
+      for (const [key, layer] of Object.entries(routeLayers)) {
+        if (key === selectedKey) {
+          layer.setStyle({ weight: 6, opacity: 1.0 });
+          layer.bringToFront();
+        } else {
+          layer.setStyle({ weight: 2, opacity: 0.35 });
+        }
+      }
+    }
+
+    window.onload = initMap;
+  </script>
+</body>
+</html>
