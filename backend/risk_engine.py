@@ -1,12 +1,15 @@
 import math
-from backend.sea_ice_service import SeaIceService
+
 from backend.iceberg_service import IcebergService
 from backend.ml_risk_model import PolarMLRiskModel
+from backend.sea_ice_service import SeaIceService
+
 
 class RiskEngine:
-    def __init__(self, sea_ice_srv: SeaIceService, iceberg_srv: IcebergService):
+    def __init__(self, sea_ice_srv: SeaIceService, iceberg_srv: IcebergService, sea_ice_ml=None):
         self.ice_srv = sea_ice_srv
         self.berg_srv = iceberg_srv
+        self.sea_ice_ml = sea_ice_ml
         self.ml_model = PolarMLRiskModel()  # ML Model Loaded
 
     def get_weather_risk(self, lat: float, lon: float) -> float:
@@ -14,10 +17,15 @@ class RiskEngine:
         cyclonic_eddy = 0.3 * math.sin(math.radians(lon * 2.5))
         return float(min(1.0, max(0.1, storm_belt * 0.7 + cyclonic_eddy)))
 
+    def get_ml_ice_risk(self, lat: float, lon: float) -> float:
+        if self.sea_ice_ml is not None:
+            return float(max(0.0, min(1.0, self.sea_ice_ml.get_risk_at(lat, lon))))
+        return self.ml_model.predict_environmental_risk(lat, lon, month=11)
+
     def calculate_cell_risk(self, lat: float, lon: float, vessel_type: str = "Polar Class 4 (Medium)") -> dict:
         # 1. ML Model Inference for Ice Severity Prediction
-        ml_ice_risk = self.ml_model.predict_environmental_risk(lat, lon, month=11)
-        
+        ml_ice_risk = self.get_ml_ice_risk(lat, lon)
+
         # 2. Iceberg Proximity & MetOcean Weather
         berg_risk = self.berg_srv.get_iceberg_risk_at(lat, lon)
         weather_risk = self.get_weather_risk(lat, lon)

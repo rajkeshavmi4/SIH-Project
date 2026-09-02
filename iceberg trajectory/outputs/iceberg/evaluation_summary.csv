@@ -1,0 +1,11 @@
+metric,value
+test_sequences,49683.0
+persistence_mae_km,3.8163154125213623
+persistence_rmse_km,8.17380142211914
+persistence_median_km,0.0
+gru_mae_km,3.3606998920440674
+gru_rmse_km,6.6584062576293945
+gru_median_km,0.7599378228187561
+mae_improvement_percent,11.938623428344727
+ADE_km,3.3606998920440674
+FDE_km,0.7599378228187561

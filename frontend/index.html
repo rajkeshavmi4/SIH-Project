@@ -1,400 +1,164 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PolarRoute AI — Antarctic Decision Support System</title>
-  
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PolarRoute AI · Navigation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{
+  --bg:#071017; --ink:#f5fbff; --muted:#91a4b2; --line:rgba(255,255,255,.12);
+  --glass:rgba(13,25,35,.58); --glass2:rgba(9,18,27,.72);
+  --ice:#bceeff; --cyan:#72e4ff; --violet:#9d9cff; --green:#8ef0c4;
+  --amber:#f3d27d; --rose:#ff9cae;
+}
+*{box-sizing:border-box} html,body{height:100%;margin:0}
+body{overflow:hidden;background:var(--bg);color:var(--ink);font-family:'DM Sans',sans-serif}
+#map{position:absolute;inset:0;background:#061018}
+.leaflet-control-attribution{background:rgba(5,12,18,.58)!important;color:#6f8493!important;border:0!important}
+.leaflet-control-attribution a{color:#8da5b5!important}
+.leaflet-control-zoom{border:0!important;margin:0 18px 18px 0!important}
+.leaflet-control-zoom a{background:rgba(10,22,31,.68)!important;color:#dff5ff!important;border:1px solid var(--line)!important;backdrop-filter:blur(18px);width:34px!important;height:34px!important;line-height:32px!important}
 
-  <style>
-    body {
-      background-color: #090d16;
-      color: #c9d1d9;
-      font-family: 'Plus Jakarta Sans', sans-serif;
-    }
-    .font-mono {
-      font-family: 'JetBrains Mono', monospace;
-    }
-    #map {
-      height: 100%;
-      width: 100%;
-      background: #05080f;
-    }
-    .tactical-border {
-      border: 1px solid #1f293d;
-    }
-    .tactical-panel {
-      background: #0d131f;
-    }
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: #090d16; }
-    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
-  </style>
+/* atmosphere */
+.atmo{position:absolute;inset:0;pointer-events:none;z-index:400;overflow:hidden}
+.atmo:before{content:"";position:absolute;width:70vw;height:55vw;left:25%;top:-28%;background:radial-gradient(ellipse,rgba(93,213,255,.13),transparent 66%);filter:blur(24px);animation:float 12s ease-in-out infinite alternate}
+.atmo:after{content:"";position:absolute;width:55vw;height:45vw;left:-12%;bottom:-24%;background:radial-gradient(ellipse,rgba(122,109,255,.10),transparent 68%);filter:blur(30px)}
+.vignette{position:absolute;inset:0;z-index:401;pointer-events:none;box-shadow:inset 0 0 150px rgba(0,0,0,.52),inset 0 -100px 180px rgba(0,0,0,.22)}
+@keyframes float{to{transform:translate3d(-3%,5%,0) scale(1.06)}}
+
+.glass{background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.035));border:1px solid rgba(255,255,255,.14);box-shadow:0 22px 70px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.07);backdrop-filter:blur(26px) saturate(145%);-webkit-backdrop-filter:blur(26px) saturate(145%)}
+.glass-dark{background:rgba(6,15,23,.70)}
+.display{font-family:'Space Grotesk',sans-serif}
+.eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:#8ea3b1}
+.field{width:100%;height:48px;border-radius:14px;border:1px solid rgba(255,255,255,.11);background:rgba(2,9,15,.35);color:#eef9ff;padding:0 13px;font:500 13px 'DM Sans';outline:none;transition:.2s;border-radius:14px}
+.field:hover{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.045)}
+.field:focus{border-color:rgba(114,228,255,.6);box-shadow:0 0 0 4px rgba(114,228,255,.08)}
+select.field option{background:#0c1821;color:#fff}
+.primary{height:50px;border:0;border-radius:15px;background:linear-gradient(135deg,#b9f5ff,#78ddff);color:#071017;font:700 13px 'Space Grotesk';cursor:pointer;box-shadow:0 12px 34px rgba(114,228,255,.16);transition:.2s;display:flex;align-items:center;justify-content:center;gap:10px}
+.primary:hover{transform:translateY(-1px);box-shadow:0 18px 40px rgba(114,228,255,.23)}
+.primary:active{transform:translateY(0)}
+
+.top{position:absolute;z-index:1000;top:22px;left:24px;right:24px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+.brand{pointer-events:auto;display:flex;align-items:center;gap:11px;padding:9px 13px 9px 9px;border-radius:18px}
+.logo{width:39px;height:39px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,rgba(188,238,255,.22),rgba(157,156,255,.13));border:1px solid rgba(255,255,255,.15);box-shadow:inset 0 1px rgba(255,255,255,.16)}
+.brand-name{font:700 15px 'Space Grotesk';letter-spacing:-.025em}.brand-name span{color:var(--cyan)}
+.brand-sub{font-size:10px;color:rgba(235,247,255,.46);margin-top:1px}
+.status{pointer-events:auto;border-radius:999px;padding:9px 13px;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(245,251,255,.72)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 5px rgba(142,240,196,.08),0 0 16px rgba(142,240,196,.45)}
+
+.controls{position:absolute;z-index:1000;left:24px;top:94px;width:370px;border-radius:25px;padding:22px}
+.hero-title{font:700 27px/1.06 'Space Grotesk';letter-spacing:-.045em;margin:6px 0 9px;max-width:290px}
+.hero-copy{font-size:12px;line-height:1.55;color:rgba(226,240,249,.58);max-width:310px;margin:0 0 19px}
+.form{display:grid;gap:12px}.label{display:block;margin:0 0 7px;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#8397a5;font-weight:700}
+.swap{position:absolute;right:34px;top:196px;width:31px;height:31px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(11,23,32,.82);color:#bdefff;display:grid;place-items:center;z-index:2;cursor:pointer}
+.divider{height:1px;background:rgba(255,255,255,.08);margin:18px 0}
+.chips{display:flex;gap:7px;flex-wrap:wrap}.chip{border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.035);border-radius:999px;padding:7px 9px;font-size:10px;color:rgba(234,246,252,.58)}
+
+.right-panel{position:absolute;z-index:1000;right:24px;top:94px;width:238px;border-radius:22px;padding:16px}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}.section-title{font:600 12px 'Space Grotesk'}.live{font-size:9px;color:var(--green);display:flex;align-items:center;gap:5px}
+.conditions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.condition{border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.12);border-radius:13px;padding:11px}.condition .k{font-size:9px;color:#7e94a3;text-transform:uppercase;letter-spacing:.08em}.condition .v{font:600 16px 'Space Grotesk';margin-top:4px}.condition .s{font-size:9px;color:#718694;margin-top:2px}
+.map-key{margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07);display:grid;gap:8px}.key-row{display:flex;align-items:center;gap:8px;font-size:10px;color:rgba(235,247,255,.55)}.key-line{width:25px;height:3px;border-radius:10px}
+
+.bottom{position:absolute;z-index:1000;left:24px;right:24px;bottom:22px;display:none}.bottom.visible{display:block}.results-wrap{border-radius:23px;padding:12px}.results-head{display:flex;align-items:center;justify-content:space-between;padding:3px 5px 10px}.results-title{font:600 13px 'Space Grotesk'}.results-sub{font-size:10px;color:rgba(235,247,255,.4);margin-top:2px}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.route{border:1px solid rgba(255,255,255,.10);background:rgba(3,11,17,.48);border-radius:17px;padding:13px;text-align:left;color:white;cursor:pointer;transition:.22s}.route:hover{background:rgba(255,255,255,.06);transform:translateY(-2px)}.route.active{border-color:rgba(114,228,255,.48);background:linear-gradient(135deg,rgba(114,228,255,.10),rgba(255,255,255,.035))}.route-top{display:flex;justify-content:space-between;align-items:center}.route-name{font:600 12px 'Space Grotesk';display:flex;align-items:center;gap:7px}.route-dot{width:7px;height:7px;border-radius:50%}.risk{font-size:10px;font-weight:700}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:11px}.metric-k{font-size:8px;color:#708491;text-transform:uppercase;letter-spacing:.08em}.metric-v{font:600 14px 'Space Grotesk';margin-top:3px}.why{font-size:9px;line-height:1.4;color:rgba(225,239,247,.46);margin:10px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.loading{position:fixed;inset:0;z-index:3000;display:none;place-items:center;background:rgba(3,8,12,.42);backdrop-filter:blur(10px)}.loading.show{display:grid}.loader-card{width:330px;border-radius:22px;padding:19px}.loader-top{display:flex;align-items:center;justify-content:space-between}.loader-label{font-size:10px;color:#8fa5b3;text-transform:uppercase;letter-spacing:.12em}.loader-step{font:600 14px 'Space Grotesk';margin-top:4px}.spinner{width:31px;height:31px;border-radius:50%;border:1px solid rgba(255,255,255,.1);border-top-color:var(--cyan);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.progress{height:3px;background:rgba(255,255,255,.07);border-radius:9px;margin-top:18px;overflow:hidden}.progress>div{height:100%;width:0;background:linear-gradient(90deg,var(--violet),var(--cyan));transition:.35s}
+.toast{position:fixed;z-index:3500;right:24px;bottom:24px;border-radius:13px;padding:12px 14px;font-size:11px;color:#dcebf2;opacity:0;transform:translateY(10px);transition:.25s;pointer-events:none}.toast.show{opacity:1;transform:none}
+
+@media(max-width:1050px){.right-panel{display:none}.controls{width:350px}.bottom{left:395px}.cards{grid-template-columns:1fr}}
+@media(max-width:760px){body{overflow:auto}.controls{left:14px;right:14px;width:auto;top:84px}.top{left:14px;right:14px}.brand-sub{display:none}.bottom{display:none!important}}
+</style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden select-none">
+<body>
+<div id="map"></div><div class="atmo"></div><div class="vignette"></div>
 
-  <!-- Tactical Header -->
-  <header class="tactical-panel tactical-border border-t-0 border-x-0 px-5 py-2.5 flex items-center justify-between z-20">
-    <div class="flex items-center space-x-3">
-      <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 px-2 py-1 rounded">
-        <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-        <span class="text-[11px] font-mono text-slate-300 uppercase tracking-widest font-semibold">ECDIS POLAR-CORE</span>
-      </div>
-      <span class="text-slate-600 font-mono">|</span>
-      <h1 class="text-sm font-bold tracking-wider text-slate-100 uppercase font-mono">PolarRoute AI <span class="text-cyan-400 text-xs font-normal">v1.0.4-MVP</span></h1>
+<header class="top">
+  <div class="brand glass">
+    <div class="logo" aria-label="PolarRoute logo">
+      <svg width="23" height="23" viewBox="0 0 32 32" fill="none">
+        <path d="M16 3.5 19.1 12 28.5 16l-9.4 4L16 28.5 12.9 20 3.5 16l9.4-4L16 3.5Z" stroke="#bceeff" stroke-width="1.6"/>
+        <path d="m16 9.5 1.8 4.7L22.5 16l-4.7 1.8L16 22.5l-1.8-4.7L9.5 16l4.7-1.8L16 9.5Z" fill="#72e4ff" fill-opacity=".38"/>
+        <circle cx="16" cy="16" r="2" fill="#f5fbff"/>
+      </svg>
     </div>
-
-    <div class="flex items-center gap-4 text-xs font-mono">
-      <div class="flex items-center gap-2">
-        <span class="text-slate-400">ZONE:</span>
-        <span class="text-slate-200">ANTARCTICA (>55°S)</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="text-slate-400">DATA MODEL:</span>
-        <span class="text-amber-400">DETERMINISTIC DRIFT</span>
-      </div>
-      <div class="bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 text-[10px]">
-        NOAA SIMULATOR ACTIVE
-      </div>
-    </div>
-  </header>
-
-  <!-- Main Viewport -->
-  <div class="flex-1 flex relative overflow-hidden">
-    
-    <!-- Left Tactical Controls & Intelligence Panel -->
-    <aside class="w-[420px] tactical-panel tactical-border border-y-0 border-l-0 z-10 flex flex-col justify-between overflow-y-auto p-4 space-y-4">
-      
-      <div class="space-y-4">
-        <!-- Section Header -->
-        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-          <span class="text-xs font-mono font-semibold uppercase text-cyan-400 tracking-wider">Mission Input Parameters</span>
-          <span class="text-[10px] font-mono text-slate-400">SOLAS CH-V COMPLIANT</span>
-        </div>
-
-        <!-- Form Elements -->
-        <div class="space-y-3 text-xs">
-          <div>
-            <label class="font-mono text-slate-400 block mb-1">DEPARTURE HARBOR</label>
-            <select id="startSelect" class="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-200 font-mono focus:border-cyan-500 focus:outline-none">
-              <option value="-53.1,-70.9">Punta Arenas, Chile (53.1°S, 70.9°W)</option>
-              <option value="-54.8,-68.3">Ushuaia, Argentina (54.8°S, 68.3°W)</option>
-              <option value="-43.5,172.6">Lyttelton / Christchurch (43.5°S, 172.6°E)</option>
-              <option value="-33.9,18.4">Cape Town Harbor (33.9°S, 18.4°E)</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="font-mono text-slate-400 block mb-1">POLAR DESTINATION</label>
-            <select id="destSelect" class="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-200 font-mono focus:border-cyan-500 focus:outline-none">
-              <option value="-64.8,-64.1">Palmer Station (64.8°S, 64.1°W)</option>
-              <option value="-77.8,166.7">McMurdo Station (77.8°S, 166.7°E)</option>
-              <option value="-69.4,76.4">Zhongshan Station (69.4°S, 76.4°E)</option>
-              <option value="-70.7,-8.3">Neumayer III Station (70.7°S, 8.3°W)</option>
-            </select>
-          </div>
-
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="font-mono text-slate-400 block mb-1">DEPARTURE DATE</label>
-              <input id="depDate" type="date" value="2026-11-20" class="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-slate-200 font-mono focus:border-cyan-500 focus:outline-none" />
-            </div>
-            <div>
-              <label class="font-mono text-slate-400 block mb-1">POLAR CLASS</label>
-              <select id="vesselSelect" class="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-slate-200 font-mono focus:border-cyan-500 focus:outline-none">
-                <option>Polar Class 1 (Heavy)</option>
-                <option selected>Polar Class 4 (Medium)</option>
-                <option>Standard Cargo (Ice 1C)</option>
-              </select>
-            </div>
-          </div>
-
-          <button id="calcBtn" onclick="runOptimization()" class="w-full py-2.5 mt-2 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold font-mono uppercase tracking-wider rounded transition flex items-center justify-center gap-2">
-            <span>Calculate Navigation Profiles</span>
-          </button>
-        </div>
-
-        <!-- Dynamic Results Section -->
-        <div id="routeResults" class="space-y-3 pt-2 border-t border-slate-800 hidden">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-mono font-semibold uppercase text-cyan-400 tracking-wider">Multi-Objective Solutions</span>
-            <span class="text-[10px] text-slate-400 font-mono">3 PROFILES</span>
-          </div>
-
-          <!-- Safest Route Card -->
-          <div id="safestCard" class="p-3 rounded bg-slate-950 border border-emerald-500/40 cursor-pointer hover:border-emerald-400 transition space-y-2" onclick="highlightRoute('safest')">
-            <div class="flex justify-between items-center">
-              <span class="text-[11px] font-mono font-bold text-emerald-400 uppercase tracking-wider">● Profile: Safest Corridor</span>
-              <span id="safestRisk" class="text-xs font-mono font-bold text-emerald-400"></span>
-            </div>
-            <div class="grid grid-cols-3 gap-2 text-[11px] font-mono bg-slate-900/90 p-2 rounded border border-slate-800/80">
-              <div><span class="text-slate-400 block text-[9px]">DIST</span><span id="safestDist" class="text-slate-200 font-bold"></span></div>
-              <div><span class="text-slate-400 block text-[9px]">TIME</span><span id="safestTime" class="text-slate-200 font-bold"></span></div>
-              <div><span class="text-slate-400 block text-[9px]">HFO BURN</span><span id="safestFuel" class="text-slate-200 font-bold"></span></div>
-            </div>
-            <p id="safestWhy" class="text-[11px] text-slate-300 leading-normal border-l-2 border-emerald-500 pl-2"></p>
-          </div>
-
-          <!-- Balanced Route Card -->
-          <div id="balancedCard" class="p-3 rounded bg-slate-950 border border-amber-500/30 cursor-pointer hover:border-amber-400 transition space-y-2" onclick="highlightRoute('balanced')">
-            <div class="flex justify-between items-center">
-              <span class="text-[11px] font-mono font-bold text-amber-400 uppercase tracking-wider">● Profile: Balanced Transit</span>
-              <span id="balancedRisk" class="text-xs font-mono font-bold text-amber-400"></span>
-            </div>
-            <div class="grid grid-cols-3 gap-2 text-[11px] font-mono bg-slate-900/90 p-2 rounded border border-slate-800/80">
-              <div><span class="text-slate-400 block text-[9px]">DIST</span><span id="balancedDist" class="text-slate-200 font-bold"></span></div>
-              <div><span class="text-slate-400 block text-[9px]">TIME</span><span id="balancedTime" class="text-slate-200 font-bold"></span></div>
-              <div><span class="text-slate-400 block text-[9px]">HFO BURN</span><span id="balancedFuel" class="text-slate-200 font-bold"></span></div>
-            </div>
-            <p id="balancedWhy" class="text-[11px] text-slate-300 leading-normal border-l-2 border-amber-500 pl-2"></p>
-          </div>
-
-          <!-- Fuel Efficient Card -->
-          <div id="efficientCard" class="p-3 rounded bg-slate-950 border border-red-500/30 cursor-pointer hover:border-red-400 transition space-y-2" onclick="highlightRoute('fuel_efficient')">
-            <div class="flex justify-between items-center">
-              <span class="text-[11px] font-mono font-bold text-red-400 uppercase tracking-wider">● Profile: Direct Geodesic</span>
-              <span id="efficientRisk" class="text-xs font-mono font-bold text-red-400"></span>
-            </div>
-            <div class="grid grid-cols-3 gap-2 text-[11px] font-mono bg-slate-900/90 p-2 rounded border border-slate-800/80">
-              <div><span class="text-slate-400 block text-[9px]">DIST</span><span id="efficientDist" class="text-slate-200 font-bold"></span></div>
-              <div><span class="text-slate-400 block text-[9px]">TIME</span><span id="efficientTime" class="text-slate-200 font-bold"></span></div>
-              <div><span class="text-slate-400 block text-[9px]">HFO BURN</span><span id="efficientFuel" class="text-slate-200 font-bold"></span></div>
-            </div>
-            <p id="efficientWhy" class="text-[11px] text-slate-300 leading-normal border-l-2 border-red-500 pl-2"></p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Risk Matrix Footer -->
-      <div class="text-[10px] font-mono text-slate-400 bg-slate-950 p-2 rounded tactical-border">
-        <div class="text-slate-300 font-bold mb-0.5">ALGORITHM RISK WEIGHTINGS</div>
-        R = 0.5(IceConc) + 0.3(IcebergProx) + 0.2(WeatherBelt)
-      </div>
-    </aside>
-
-    <!-- Map View -->
-    <main class="flex-1 relative">
-      <div id="map"></div>
-      
-      <!-- Tactical Map Overlay Legend -->
-      <div class="absolute bottom-5 right-5 tactical-panel tactical-border p-3.5 rounded-lg text-xs space-y-2 z-[1000] shadow-xl">
-        <div class="font-mono font-bold text-[11px] text-slate-300 uppercase tracking-wider border-b border-slate-800 pb-1">Navigation Layers</div>
-        <div class="flex items-center space-x-2"><span class="w-3.5 h-1 bg-emerald-500 rounded"></span><span class="font-mono text-slate-300">Safest Route</span></div>
-        <div class="flex items-center space-x-2"><span class="w-3.5 h-1 bg-amber-400 rounded"></span><span class="font-mono text-slate-300">Balanced Route</span></div>
-        <div class="flex items-center space-x-2"><span class="w-3.5 h-1 bg-red-500 rounded"></span><span class="font-mono text-slate-300">Direct Route</span></div>
-        <div class="flex items-center space-x-2"><span class="w-3 h-3 bg-cyan-500/30 border border-cyan-400 rounded"></span><span class="font-mono text-slate-300">Pack Ice Polygon</span></div>
-        <div class="flex items-center space-x-2"><span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span><span class="font-mono text-slate-300">Tracked Iceberg + 72h Drift</span></div>
-      </div>
-    </main>
+    <div><div class="brand-name">PolarRoute <span>AI</span></div><div class="brand-sub">Antarctic decision intelligence</div></div>
   </div>
+  <div class="status glass"><span class="status-dot"></span><span id="dataStatus">Environmental data connected</span></div>
+</header>
 
-  <!-- Loading Sequence Modal -->
-  <div id="loadingModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center hidden">
-    <div class="tactical-panel tactical-border p-6 rounded-lg w-96 space-y-4 shadow-2xl">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-        <span class="text-xs font-mono font-bold text-cyan-400 uppercase tracking-wider">A* Polar Lattice Solver</span>
-        <span class="animate-spin text-cyan-400 text-sm">◷</span>
-      </div>
-      <div class="space-y-2">
-        <p id="loadingStep" class="text-xs font-mono text-slate-200">Initializing calculation grid...</p>
-        <div class="w-full bg-slate-900 h-1.5 rounded overflow-hidden">
-          <div id="loadingBar" class="bg-cyan-500 h-full w-0 transition-all duration-300"></div>
-        </div>
-      </div>
-      <div class="text-[10px] font-mono text-slate-400">Evaluating multi-parameter heuristic across Drake Passage & Southern Ocean grids.</div>
-    </div>
+<aside class="controls glass">
+  <div class="eyebrow">Voyage planner</div>
+  <div class="hero-title">Navigate the edge with confidence.</div>
+  <p class="hero-copy">Build a route using sea-ice conditions, iceberg exposure and environmental risk.</p>
+  <button class="swap" title="Swap origin and destination" onclick="swapPorts()">↕</button>
+  <div class="form">
+    <div><label class="label">From</label><select id="startSelect" class="field"><option value="-53.1,-70.9">Punta Arenas, Chile</option><option value="-54.8,-68.3">Ushuaia, Argentina</option><option value="-43.5,172.6">Lyttelton, New Zealand</option><option value="-33.9,18.4">Cape Town, South Africa</option></select></div>
+    <div><label class="label">To</label><select id="destSelect" class="field"><option value="-64.8,-64.1">Palmer Station</option><option value="-77.8,166.7">McMurdo Station</option><option value="-69.4,76.4">Zhongshan Station</option><option value="-70.7,-8.3">Neumayer III</option></select></div>
+    <div style="display:grid;grid-template-columns:1.1fr .9fr;gap:10px"><div><label class="label">Departure</label><input id="depDate" type="date" value="2026-11-20" class="field"></div><div><label class="label">Vessel class</label><select id="vesselSelect" class="field"><option>Polar Class 1</option><option selected>Polar Class 4</option><option>Ice 1C</option></select></div></div>
+    <button id="calcBtn" class="primary" onclick="runOptimization()">Generate route options <span>→</span></button>
   </div>
+  <div class="divider"></div>
+  <div class="eyebrow" style="margin-bottom:9px">Risk model inputs</div>
+  <div class="chips"><span class="chip">Sea ice</span><span class="chip">Iceberg drift</span><span class="chip">Weather</span><span class="chip">Vessel class</span></div>
+</aside>
 
-  <script>
-    let map, routeLayers = {}, envLayers = L.layerGroup();
+<section class="right-panel glass">
+  <div class="section-head"><div class="section-title">Conditions</div><div class="live"><span class="status-dot" style="width:5px;height:5px"></span>LIVE</div></div>
+  <div class="conditions">
+    <div class="condition"><div class="k">Sea ice</div><div class="v">Moderate</div><div class="s">concentration</div></div>
+    <div class="condition"><div class="k">Visibility</div><div class="v">18 km</div><div class="s">estimated</div></div>
+    <div class="condition"><div class="k">Wind</div><div class="v">16 kt</div><div class="s">SW · 228°</div></div>
+    <div class="condition"><div class="k">Icebergs</div><div class="v">12</div><div class="s">tracked nearby</div></div>
+  </div>
+  <div class="map-key">
+    <div class="key-row"><span class="key-line" style="background:#8ef0c4"></span>Safest corridor</div>
+    <div class="key-row"><span class="key-line" style="background:#f3d27d"></span>Balanced corridor</div>
+    <div class="key-row"><span class="key-line" style="background:#ff9cae"></span>Fuel efficient</div>
+    <div class="key-row"><span style="width:7px;height:7px;border-radius:50%;background:#f3d9ff"></span>Tracked iceberg</div>
+  </div>
+</section>
 
-    function initMap() {
-      map = L.map('map', {
-        center: [-65.0, -45.0],
-        zoom: 3,
-        minZoom: 2,
-        maxZoom: 8
-      });
+<section id="routeResults" class="bottom">
+ <div class="results-wrap glass">
+  <div class="results-head"><div><div class="results-title">Route options</div><div class="results-sub">Choose the trade-off that fits this voyage.</div></div><div id="routeSummary" class="results-sub">Safest selected</div></div>
+  <div class="cards">
+   <button id="safestCard" class="route" onclick="highlightRoute('safest')"><div class="route-top"><span class="route-name"><span class="route-dot" style="background:#8ef0c4"></span>Safest</span><span id="safestRisk" class="risk" style="color:#8ef0c4"></span></div><div class="metrics"><div><div class="metric-k">Distance</div><div id="safestDist" class="metric-v"></div></div><div><div class="metric-k">Time</div><div id="safestTime" class="metric-v"></div></div><div><div class="metric-k">Fuel</div><div id="safestFuel" class="metric-v"></div></div></div><p id="safestWhy" class="why"></p></button>
+   <button id="balancedCard" class="route" onclick="highlightRoute('balanced')"><div class="route-top"><span class="route-name"><span class="route-dot" style="background:#f3d27d"></span>Balanced</span><span id="balancedRisk" class="risk" style="color:#f3d27d"></span></div><div class="metrics"><div><div class="metric-k">Distance</div><div id="balancedDist" class="metric-v"></div></div><div><div class="metric-k">Time</div><div id="balancedTime" class="metric-v"></div></div><div><div class="metric-k">Fuel</div><div id="balancedFuel" class="metric-v"></div></div></div><p id="balancedWhy" class="why"></p></button>
+   <button id="efficientCard" class="route" onclick="highlightRoute('fuel_efficient')"><div class="route-top"><span class="route-name"><span class="route-dot" style="background:#ff9cae"></span>Fuel efficient</span><span id="efficientRisk" class="risk" style="color:#ff9cae"></span></div><div class="metrics"><div><div class="metric-k">Distance</div><div id="efficientDist" class="metric-v"></div></div><div><div class="metric-k">Time</div><div id="efficientTime" class="metric-v"></div></div><div><div class="metric-k">Fuel</div><div id="efficientFuel" class="metric-v"></div></div></div><p id="efficientWhy" class="why"></p></button>
+  </div>
+ </div>
+</section>
 
-      // Pure dark canvas (Esri Dark Gray - No API Key, No Watermark)
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Esri, DeLorme, NAVTEQ',
-        maxZoom: 16
-      }).addTo(map);
+<div id="loading" class="loading"><div class="loader-card glass"><div class="loader-top"><div><div class="loader-label">Route intelligence</div><div id="loadingStep" class="loader-step">Reading sea-ice conditions</div></div><div class="spinner"></div></div><div class="progress"><div id="loadingBar"></div></div></div></div>
+<div id="toast" class="toast glass"></div>
 
-      // Boundaries and labels overlay
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
-        attribution: '',
-        maxZoom: 16
-      }).addTo(map);
-
-      envLayers.addTo(map);
-      loadEnvironment();
-    }
-
-    async function loadEnvironment() {
-      try {
-        const res = await fetch('/api/environment/layers');
-        const data = await res.json();
-        
-        envLayers.clearLayers();
-
-        // Sea ice concentration polygons
-        L.geoJSON(data.ice_zones, {
-          style: function(feat) {
-            return {
-              color: '#38bdf8',
-              fillColor: '#0284c7',
-              fillOpacity: feat.properties.risk * 0.35,
-              weight: 1,
-              dashArray: '2, 4'
-            };
-          },
-          onEachFeature: function(feat, layer) {
-            layer.bindPopup(`<div class="font-mono text-xs"><b>${feat.properties.name}</b><br/>Severity: ${(feat.properties.risk * 100).toFixed(0)}%</div>`);
-          }
-        }).addTo(envLayers);
-
-        // Iceberg markers and drift lines
-        data.icebergs.forEach(b => {
-          const bergMarker = L.circleMarker([b.lat, b.lon], {
-            radius: 5,
-            fillColor: '#f43f5e',
-            color: '#ffffff',
-            weight: 1.5,
-            fillOpacity: 1
-          }).bindPopup(`<div class="font-mono text-xs"><b>ID: ${b.id}</b><br/>Area: ${b.size_km2} km²<br/>Drift: ${b.speed_knots} kts @ ${b.drift_dir}°</div>`);
-          
-          envLayers.addLayer(bergMarker);
-
-          const trajLatLngs = b.trajectory.map(pt => [pt[1], pt[0]]);
-          const trajLine = L.polyline(trajLatLngs, {
-            color: '#fb7185',
-            weight: 1.5,
-            dashArray: '3, 4',
-            opacity: 0.85
-          });
-          envLayers.addLayer(trajLine);
-        });
-
-      } catch (e) {
-        console.error("Failed to load environment layers", e);
-      }
-    }
-
-    async function runOptimization() {
-      const startVal = document.getElementById('startSelect').value.split(',');
-      const destVal = document.getElementById('destSelect').value.split(',');
-      const vessel = document.getElementById('vesselSelect').value;
-      const depDate = document.getElementById('depDate').value;
-
-      const modal = document.getElementById('loadingModal');
-      const stepTxt = document.getElementById('loadingStep');
-      const bar = document.getElementById('loadingBar');
-      modal.classList.remove('hidden');
-
-      const steps = [
-        { text: "Analyzing sea ice concentration...", width: "25%" },
-        { text: "Tracking iceberg drift trajectories...", width: "50%" },
-        { text: "Calculating environmental risk matrix...", width: "75%" },
-        { text: "Optimizing multi-profile pathways...", width: "100%" }
-      ];
-
-      for (let i = 0; i < steps.length; i++) {
-        stepTxt.innerText = steps[i].text;
-        bar.style.width = steps[i].width;
-        await new Promise(r => setTimeout(r, 280));
-      }
-
-      try {
-        const payload = {
-          start_lat: parseFloat(startVal[0]),
-          start_lon: parseFloat(startVal[1]),
-          dest_lat: parseFloat(destVal[0]),
-          dest_lon: parseFloat(destVal[1]),
-          departure_date: depDate,
-          vessel_type: vessel
-        };
-
-        const res = await fetch('/api/routes/calculate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        modal.classList.add('hidden');
-        renderRoutes(data.routes);
-
-      } catch (err) {
-        modal.classList.add('hidden');
-        alert("Route calculation failed.");
-      }
-    }
-
-    function renderRoutes(routes) {
-      Object.values(routeLayers).forEach(l => map.removeLayer(l));
-      routeLayers = {};
-
-      const configs = {
-        safest: { color: '#10b981', weight: 4 },
-        balanced: { color: '#f59e0b', weight: 3.5 },
-        fuel_efficient: { color: '#ef4444', weight: 3 }
-      };
-
-      for (const [key, r] of Object.entries(routes)) {
-        const latlngs = r.waypoints.map(w => [w[0], w[1]]);
-        const poly = L.polyline(latlngs, {
-          color: configs[key].color,
-          weight: configs[key].weight,
-          opacity: 0.95
-        }).addTo(map);
-        routeLayers[key] = poly;
-      }
-
-      document.getElementById('routeResults').classList.remove('hidden');
-
-      // Populate Safest
-      document.getElementById('safestRisk').innerText = `${routes.safest.overall_risk_score}% RISK`;
-      document.getElementById('safestDist').innerText = `${routes.safest.distance_nm} NM`;
-      document.getElementById('safestTime').innerText = `${routes.safest.estimated_time_days} d`;
-      document.getElementById('safestFuel').innerText = `${routes.safest.fuel_consumption_mt} MT`;
-      document.getElementById('safestWhy').innerText = `${routes.safest.explanation}`;
-
-      // Populate Balanced
-      document.getElementById('balancedRisk').innerText = `${routes.balanced.overall_risk_score}% RISK`;
-      document.getElementById('balancedDist').innerText = `${routes.balanced.distance_nm} NM`;
-      document.getElementById('balancedTime').innerText = `${routes.balanced.estimated_time_days} d`;
-      document.getElementById('balancedFuel').innerText = `${routes.balanced.fuel_consumption_mt} MT`;
-      document.getElementById('balancedWhy').innerText = `${routes.balanced.explanation}`;
-
-      // Populate Fuel Efficient
-      document.getElementById('efficientRisk').innerText = `${routes.fuel_efficient.overall_risk_score}% RISK`;
-      document.getElementById('efficientDist').innerText = `${routes.fuel_efficient.distance_nm} NM`;
-      document.getElementById('efficientTime').innerText = `${routes.fuel_efficient.estimated_time_days} d`;
-      document.getElementById('efficientFuel').innerText = `${routes.fuel_efficient.fuel_consumption_mt} MT`;
-      document.getElementById('efficientWhy').innerText = `${routes.fuel_efficient.explanation}`;
-
-      map.fitBounds(routeLayers.safest.getBounds(), { padding: [60, 60] });
-    }
-
-    function highlightRoute(selectedKey) {
-      for (const [key, layer] of Object.entries(routeLayers)) {
-        if (key === selectedKey) {
-          layer.setStyle({ weight: 6, opacity: 1.0 });
-          layer.bringToFront();
-        } else {
-          layer.setStyle({ weight: 2, opacity: 0.35 });
-        }
-      }
-    }
-
-    window.onload = initMap;
-  </script>
+<script>
+let map,routeLayers={},envLayers=L.layerGroup();
+function initMap(){
+ map=L.map('map',{center:[-65,-45],zoom:3,minZoom:2,maxZoom:8,zoomControl:false});
+ L.control.zoom({position:'bottomright'}).addTo(map);
+ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{attribution:'Esri, DeLorme, NAVTEQ',maxZoom:16}).addTo(map);
+ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{attribution:'',maxZoom:16}).addTo(map);
+ envLayers.addTo(map);loadEnvironment();
+}
+async function loadEnvironment(){try{const res=await fetch('/api/environment/layers');if(!res.ok)throw Error();const data=await res.json();envLayers.clearLayers();if(data.ice_zones)L.geoJSON(data.ice_zones,{style:f=>({color:'#bceeff',fillColor:'#72e4ff',fillOpacity:(f.properties.risk||0)*.16,weight:1,dashArray:'3 6'})}).addTo(envLayers);(data.icebergs||[]).forEach(b=>{L.circleMarker([b.lat,b.lon],{radius:4,fillColor:'#f3d9ff',color:'#fff',weight:1,fillOpacity:.95}).bindPopup(`<b>${b.id}</b><br>${b.size_km2} km² · ${b.speed_knots} kt`).addTo(envLayers);if(b.trajectory)L.polyline(b.trajectory.map(p=>[p[1],p[0]]),{color:'#f3d9ff',weight:1,dashArray:'4 5',opacity:.5}).addTo(envLayers)});document.getElementById('dataStatus').textContent='Environmental data connected'}catch(e){document.getElementById('dataStatus').textContent='Research data mode'}}
+function swapPorts(){const a=document.getElementById('startSelect'),b=document.getElementById('destSelect');const av=a.value,bv=b.value;for(let i=0;i<a.options.length;i++)if(a.options[i].value===bv)a.selectedIndex=i;for(let i=0;i<b.options.length;i++)if(b.options[i].value===av)b.selectedIndex=i}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+function setLoading(show){const x=document.getElementById('loading');x.classList.toggle('show',show)}
+async function runOptimization(){
+ const s=document.getElementById('startSelect').value.split(','),d=document.getElementById('destSelect').value.split(','),v=document.getElementById('vesselSelect').value,date=document.getElementById('depDate').value;
+ setLoading(true);const steps=[['Reading sea-ice conditions','25%'],['Projecting iceberg exposure','52%'],['Balancing safety and distance','76%'],['Building route options','100%']];
+ for(const [t,w] of steps){document.getElementById('loadingStep').textContent=t;document.getElementById('loadingBar').style.width=w;await sleep(260)}
+ try{const res=await fetch('/api/routes/calculate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({start_lat:+s[0],start_lon:+s[1],dest_lat:+d[0],dest_lon:+d[1],departure_date:date,vessel_type:v})});if(!res.ok)throw Error(`HTTP ${res.status}`);const data=await res.json();setLoading(false);renderRoutes(data.routes)}catch(e){setLoading(false);toast('Route service is not connected yet. The interface is ready for your backend.');console.error(e)}}
+function renderRoutes(routes){Object.values(routeLayers).forEach(l=>map.removeLayer(l));routeLayers={};const cfg={safest:{color:'#8ef0c4',weight:4},balanced:{color:'#f3d27d',weight:3.5},fuel_efficient:{color:'#ff9cae',weight:3}};for(const [k,r] of Object.entries(routes)){routeLayers[k]=L.polyline(r.waypoints.map(w=>[w[0],w[1]]),{color:cfg[k].color,weight:cfg[k].weight,opacity:.92,lineCap:'round',lineJoin:'round'}).addTo(map)}fill('safest',routes.safest);fill('balanced',routes.balanced);fill('efficient',routes.fuel_efficient);document.getElementById('routeResults').classList.add('visible');highlightRoute('safest');if(routeLayers.safest)map.fitBounds(routeLayers.safest.getBounds(),{padding:[80,80]})}
+function fill(id,r){const p=id==='efficient'?'fuel_efficient':id;document.getElementById(id+'Risk').textContent=`${r.overall_risk_score}% risk`;document.getElementById(id+'Dist').textContent=`${r.distance_nm} nm`;document.getElementById(id+'Time').textContent=`${r.estimated_time_days} d`;document.getElementById(id+'Fuel').textContent=`${r.fuel_consumption_mt} t`;document.getElementById(id+'Why').textContent=r.explanation||''}
+function highlightRoute(k){Object.entries(routeLayers).forEach(([x,l])=>l.setStyle({weight:x===k?6:2,opacity:x===k?1:.2}));['safestCard','balancedCard','efficientCard'].forEach(id=>document.getElementById(id).classList.remove('active'));const c=k==='safest'?'safestCard':k==='balanced'?'balancedCard':'efficientCard';document.getElementById(c).classList.add('active');document.getElementById('routeSummary').textContent=(k==='safest'?'Safest':k==='balanced'?'Balanced':'Fuel efficient')+' selected'}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3400)}
+window.addEventListener('load',initMap);
+</script>
 </body>
 </html>
