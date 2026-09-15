@@ -2,7 +2,7 @@ from datetime import date
 import os
 
 import numpy as np
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -13,7 +13,7 @@ from backend.route_engine import RouteEngine
 from backend.sea_ice_ml import SeaIceMLService
 from backend.sea_ice_service import SeaIceService
 
-app = FastAPI(title="PolarRoute AI", version="1.0.0")
+app = FastAPI(title="IndraSetu", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -41,6 +41,39 @@ class RouteRequest(BaseModel):
 
 class SeaIceRequest(BaseModel):
     forecast_date: str
+
+
+# ---------------------------------------------------------------------------
+# Prototype Captain authentication
+#
+# Intentionally simple: one hardcoded Captain account, exact-match
+# comparison, no hashing/JWT/sessions/database. Good enough for a
+# prototype gate in front of the existing dashboard; not production auth.
+# ---------------------------------------------------------------------------
+CAPTAIN_ID = "CAPTAIN001"
+CAPTAIN_PASSWORD = "IndraSetu@123"
+
+
+class LoginRequest(BaseModel):
+    captain_id: str
+    password: str
+
+
+@app.post("/api/auth/login")
+def login(req: LoginRequest):
+    if (
+        req.captain_id.strip() == CAPTAIN_ID
+        and req.password == CAPTAIN_PASSWORD
+    ):
+        return {
+            "success": True,
+            "captain_id": CAPTAIN_ID
+        }
+
+    raise HTTPException(
+        status_code=401,
+        detail="Invalid Captain ID or password."
+    )
 
 
 @app.get("/api/environment/layers")
@@ -72,6 +105,13 @@ def calculate_routes(req: RouteRequest):
         end=(req.dest_lat, req.dest_lon),
         vessel_type=req.vessel_type
     )
+
+
+@app.get("/login", response_class=HTMLResponse)
+def serve_login():
+    login_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "login.html")
+    with open(login_path, "r", encoding="utf-8") as f:
+        return f.read()
 
 
 @app.get("/", response_class=HTMLResponse)
