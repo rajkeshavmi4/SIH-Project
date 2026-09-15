@@ -42,7 +42,7 @@ def haversine(
     dlat = lat2 - lat1
 
     dlon = np.radians(
-        lon2 - lon1
+        (lon2 - lon1 + 180.0) % 360.0 - 180.0
     )
 
     a = (

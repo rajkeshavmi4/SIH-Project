@@ -7,13 +7,9 @@ import pandas as pd
 # CONFIG
 # ============================================================
 
-SEAICE = Path(
-    r"K:\Sih Project\Sea ice prediction"
-)
-
-ICEBERG = Path(
-    r"K:\Sih Project\iceberg trajectory"
-)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SEAICE = PROJECT_ROOT / "Sea ice prediction"
+ICEBERG = PROJECT_ROOT / "iceberg trajectory"
 
 SEAICE_FILE = (
     SEAICE
@@ -76,6 +72,9 @@ lon = seaice["longitude"].astype(
     np.float32
 )
 
+iceberg_lat = iceberg["latitude"].astype(np.float32)
+iceberg_lon = iceberg["longitude"].astype(np.float32)
+
 
 # ============================================================
 # VALIDATION
@@ -106,6 +105,12 @@ if lon.shape != seaice_risk.shape:
     raise ValueError(
         "Longitude grid does not match risk grid."
     )
+
+if not np.allclose(lat, iceberg_lat, rtol=0.0, atol=1e-5):
+    raise ValueError("Sea-ice and iceberg latitude grids are not aligned.")
+
+if not np.allclose(lon, iceberg_lon, rtol=0.0, atol=1e-5):
+    raise ValueError("Sea-ice and iceberg longitude grids are not aligned.")
 
 
 # ============================================================

@@ -70,4 +70,8 @@ class SeaIceConvLSTM(nn.Module):
             h2, c2 = self.layer2(h1, state2)
             state2 = (h2, c2)
 
-        return torch.sigmoid(self.head(h2))
+        delta = self.head(h2)
+        last_frame = x[:, -1]
+        prediction = torch.clamp(last_frame + delta, 0.0, 1.0)
+
+        return prediction

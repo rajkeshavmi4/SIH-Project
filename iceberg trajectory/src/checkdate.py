@@ -1,7 +1,7 @@
 from pathlib import Path
 import pandas as pd
 
-RAW = Path("data/iceberg/raw")
+RAW = Path(__file__).resolve().parents[1] / "data" / "raw"
 
 for file in RAW.glob("*.csv"):
     df = pd.read_csv(file)

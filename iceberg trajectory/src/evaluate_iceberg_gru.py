@@ -35,7 +35,7 @@ def haversine(lat1, lon1, lat2, lon2):
     lat2 = np.radians(lat2)
 
     dlat = lat2 - lat1
-    dlon = np.radians(lon2 - lon1)
+    dlon = np.radians((lon2 - lon1 + 180.0) % 360.0 - 180.0)
 
     a = (
         np.sin(dlat / 2) ** 2
@@ -43,6 +43,13 @@ def haversine(lat1, lon1, lat2, lon2):
         * np.cos(lat2)
         * np.sin(dlon / 2) ** 2
     )
+
+
+def destination_from_displacement(lat, lon, north_km, east_km):
+    lat_rad = np.radians(lat)
+    destination_lat = lat + np.degrees(north_km / EARTH_RADIUS_KM)
+    destination_lon = lon + np.degrees(east_km / (EARTH_RADIUS_KM * np.cos(lat_rad)))
+    return destination_lat, ((destination_lon + 180.0) % 360.0) - 180.0
 
     return (
         2
@@ -151,20 +158,12 @@ predictions = np.concatenate(
 current_lat = X[:, -1, 0]
 current_lon = X[:, -1, 1]
 
-actual_lat = (
-    current_lat + Y[:, 0]
+actual_lat, actual_lon = destination_from_displacement(
+    current_lat, current_lon, Y[:, 0], Y[:, 1]
 )
 
-actual_lon = (
-    current_lon + Y[:, 1]
-)
-
-pred_lat = (
-    current_lat + predictions[:, 0]
-)
-
-pred_lon = (
-    current_lon + predictions[:, 1]
+pred_lat, pred_lon = destination_from_displacement(
+    current_lat, current_lon, predictions[:, 0], predictions[:, 1]
 )
 
 

@@ -30,29 +30,22 @@ class SeaIceDataset(Dataset):
 
     def __getitem__(self, idx):
         i = self.indices[idx]
-
         window = np.asarray(self.data[i:i + self.seq_len + 1], dtype=np.float32)
-        valid = np.isfinite(window)
+        valid = np.isfinite(window).astype(np.float32)
         window = np.nan_to_num(window, nan=0.0, posinf=0.0, neginf=0.0)
 
         values = torch.from_numpy(window).unsqueeze(1)
-        validity = torch.from_numpy(valid.astype(np.float32)).unsqueeze(1)
+        validity = torch.from_numpy(valid).unsqueeze(1)
 
-        values = F.interpolate(
-            values,
-            size=(self.size, self.size),
-            mode="bilinear",
-            align_corners=False
-        ).squeeze(1)
+        weighted_values = values * validity
+        weighted_values = F.interpolate(weighted_values, size=(self.size, self.size), mode="bilinear", align_corners=False)
+        validity_resized = F.interpolate(validity, size=(self.size, self.size), mode="bilinear", align_corners=False)
 
-        validity = F.interpolate(
-            validity,
-            size=(self.size, self.size),
-            mode="nearest"
-        ).squeeze(1)
+        safe_validity = validity_resized.clamp(min=1e-6)
+        values_resized = weighted_values / safe_validity
+        validity_mask = (validity_resized > 0.5).float()
 
-        x = values[:self.seq_len].unsqueeze(1)
-        y = values[self.seq_len].unsqueeze(0)
-        mask = validity[self.seq_len].unsqueeze(0)
-
+        x = values_resized[:self.seq_len]
+        y = values_resized[self.seq_len]
+        mask = validity_mask[self.seq_len]
         return x, y, mask

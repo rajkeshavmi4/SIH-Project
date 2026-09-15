@@ -18,7 +18,7 @@ print("ML MODEL EVALUATION & VALIDATION")
 ml = PolarMLRiskModel()
 
 # Generate unseen test dataset (500 samples)
-X_test, y_test_continuous = ml._generate_polar_dataset(n_samples=500)
+X_test, y_test_continuous = ml._generate_polar_dataset(n_samples=500, seed=999)
 
 # Continuous Predictions (Regression)
 preds_continuous = ml.model.predict(X_test)

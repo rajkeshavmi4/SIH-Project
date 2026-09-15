@@ -1,58 +1,124 @@
 import math
+import os
+from pathlib import Path
+
+import pandas as pd
 
 class IcebergService:
-    """Manages iceberg tracking & trajectory drift vectors."""
+    """Serves iceberg positions from the trained GRU prediction artifact."""
     
     def __init__(self):
-        # Realistic Antarctic tracked icebergs
-        self.icebergs = [
-            {"id": "A-23A-sub", "lat": -63.2, "lon": -52.0, "size_km2": 3800, "drift_dir": 35, "speed_knots": 1.4},
-            {"id": "B-15Y", "lat": -67.5, "lon": -140.2, "size_km2": 450, "drift_dir": 280, "speed_knots": 0.9},
-            {"id": "C-19C", "lat": -64.8, "lon": 85.3, "size_km2": 820, "drift_dir": 70, "speed_knots": 1.1},
-            {"id": "D-28B", "lat": -70.1, "lon": 15.4, "size_km2": 1200, "drift_dir": 310, "speed_knots": 0.7},
-            {"id": "A-76A", "lat": -58.5, "lon": -38.2, "size_km2": 2100, "drift_dir": 45, "speed_knots": 1.8},
-            {"id": "IB-902", "lat": -62.0, "lon": -105.0, "size_km2": 150, "drift_dir": 110, "speed_knots": 1.2}
-        ]
+        project_root = Path(__file__).resolve().parents[1]
+        default_path = project_root / "iceberg trajectory" / "outputs" / "iceberg" / "test_predictions.csv"
+        self.predictions_path = Path(os.getenv("ICEBERG_PREDICTIONS_PATH", default_path))
+        self.icebergs, self.forecast_date = self._load_predictions()
+
+    def _load_predictions(self):
+        required = {
+            "track_id",
+            "iceberg_id",
+            "input_date",
+            "target_date",
+            "current_lat",
+            "current_lon",
+            "predicted_lat",
+            "predicted_lon",
+            "gru_error_km",
+        }
+        if not self.predictions_path.exists():
+            raise FileNotFoundError(f"Iceberg GRU predictions not found: {self.predictions_path}")
+
+        predictions = pd.read_csv(
+            self.predictions_path,
+            parse_dates=["input_date", "target_date"],
+        )
+        missing = required.difference(predictions.columns)
+        if missing:
+            raise ValueError(f"Iceberg GRU predictions missing columns: {sorted(missing)}")
+
+        predictions = predictions.dropna(
+            subset=[
+                "current_lat",
+                "current_lon",
+                "predicted_lat",
+                "predicted_lon",
+            ]
+        ).copy()
+        predictions["target_date"] = predictions["target_date"].dt.normalize()
+        forecast_date = predictions["target_date"].max()
+        latest = predictions[predictions["target_date"] == forecast_date].copy()
+        latest = latest.sort_values(["iceberg_id", "input_date", "track_id"])
+        latest = latest.drop_duplicates("iceberg_id", keep="last")
+
+        icebergs = []
+        for row in latest.itertuples(index=False):
+            speed_knots = self._speed_knots(
+                row.current_lat,
+                row.current_lon,
+                row.predicted_lat,
+                row.predicted_lon,
+            )
+            icebergs.append({
+                "id": str(row.iceberg_id),
+                "lat": float(row.current_lat),
+                "lon": float(row.current_lon),
+                "forecast_lat": float(row.predicted_lat),
+                "forecast_lon": float(row.predicted_lon),
+                "size_km2": None,
+                "speed_knots": round(speed_knots, 3),
+                "drift_dir": round(self._bearing(
+                    row.current_lat,
+                    row.current_lon,
+                    row.predicted_lat,
+                    row.predicted_lon,
+                ), 1),
+                "trajectory": [
+                    [float(row.current_lon), float(row.current_lat)],
+                    [float(row.predicted_lon), float(row.predicted_lat)],
+                ],
+                "prediction_date": str(forecast_date.date()),
+                "prediction_error_km": round(float(row.gru_error_km), 3),
+                "prediction_source": "iceberg_gru",
+            })
+
+        return icebergs, forecast_date.date().isoformat()
+
+    @staticmethod
+    def _distance_km(lat1, lon1, lat2, lon2):
+        radius_km = 6371.0088
+        lat1, lat2 = math.radians(lat1), math.radians(lat2)
+        dlat = lat2 - lat1
+        dlon = math.radians((lon2 - lon1 + 180.0) % 360.0 - 180.0)
+        a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        return 2.0 * radius_km * math.asin(math.sqrt(a))
+
+    @classmethod
+    def _speed_knots(cls, lat1, lon1, lat2, lon2):
+        return cls._distance_km(lat1, lon1, lat2, lon2) / 24.0 / 1.852
+
+    @staticmethod
+    def _bearing(lat1, lon1, lat2, lon2):
+        lat1, lat2 = math.radians(lat1), math.radians(lat2)
+        dlon = math.radians((lon2 - lon1 + 180.0) % 360.0 - 180.0)
+        bearing = math.degrees(math.atan2(
+            math.sin(dlon) * math.cos(lat2),
+            math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon),
+        ))
+        return (bearing + 360.0) % 360.0
 
     def get_all_icebergs(self):
-        """Returns iceberg positions and 72-hour forecast trajectory lines."""
-        results = []
-        for berg in self.icebergs:
-            lat = berg["lat"]
-            lon = berg["lon"]
-            rad = math.radians(berg["drift_dir"])
-            
-            # Predict 24h, 48h, 72h drift
-            drift_coords = [[lon, lat]]
-            cur_lat, cur_lon = lat, lon
-            for step in [24, 48, 72]:
-                dist_deg = (berg["speed_knots"] * step * 1.852) / 111.0
-                cur_lat += dist_deg * math.cos(rad)
-                cur_lon += (dist_deg * math.sin(rad)) / max(math.cos(math.radians(cur_lat)), 0.1)
-                drift_coords.append([round(cur_lon, 3), round(cur_lat, 3)])
-
-            results.append({
-                "id": berg["id"],
-                "lat": lat,
-                "lon": lon,
-                "size_km2": berg["size_km2"],
-                "speed_knots": berg["speed_knots"],
-                "drift_dir": berg["drift_dir"],
-                "trajectory": drift_coords
-            })
-        return results
+        """Return latest observed positions and the GRU's 24-hour forecasts."""
+        return self.icebergs
 
     def get_iceberg_risk_at(self, lat: float, lon: float) -> float:
         """Proximity penalty for nearby icebergs."""
-        min_dist_deg = 999.0
+        min_dist_km = float("inf")
         for berg in self.icebergs:
-            dlat = lat - berg["lat"]
-            dlon = (lon - berg["lon"]) * math.cos(math.radians(lat))
-            dist = math.sqrt(dlat**2 + dlon**2)
-            if dist < min_dist_deg:
-                min_dist_deg = dist
-        
-        # High danger within 2.5 degrees (~150 nautical miles)
-        if min_dist_deg < 2.5:
-            return float(max(0.0, 1.0 - (min_dist_deg / 2.5)))
+            dist = self._distance_km(lat, lon, berg["forecast_lat"], berg["forecast_lon"])
+            if dist < min_dist_km:
+                min_dist_km = dist
+
+        risk_radius_km = 2.5 * 111.0
+        if min_dist_km < risk_radius_km:
+            return float(max(0.0, 1.0 - (min_dist_km / risk_radius_km)))
         return 0.0

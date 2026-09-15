@@ -54,7 +54,7 @@ GRID_SIZE = 128
 # ============================================================
 
 print("=" * 65)
-print("POLARROUTE AI")
+print("INDRASETU")
 print("NAVIGATION MASK BUILDER")
 print("=" * 65)
 

@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
@@ -8,20 +9,19 @@ import pandas as pd
 # CONFIG
 # ============================================================
 
-DATA = Path("data/processed")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ICEBERG_ROOT = PROJECT_ROOT / "iceberg trajectory"
+DATA = PROJECT_ROOT / "Sea ice prediction" / "data" / "processed"
 
-PREDICTIONS = Path(
-    r"K:\Sih Project\iceberg trajectory\outputs\iceberg\test_predictions.csv"
-)
+PREDICTIONS = ICEBERG_ROOT / "outputs" / "iceberg" / "test_predictions.csv"
 
 LAT_FILE = DATA / "lat.npy"
 LON_FILE = DATA / "lon.npy"
 
-OUTPUT_DIR = Path(
-    r"K:\Sih Project\iceberg trajectory\outputs\iceberg"
-)
+OUTPUT_DIR = ICEBERG_ROOT / "outputs" / "iceberg"
 
 GRID_SIZE = 128
+FORECAST_DATE = sys.argv[1] if len(sys.argv) > 1 else None
 
 # Risk influence radius in km.
 # These are configurable navigation parameters.
@@ -62,7 +62,7 @@ def haversine_grid(
     dlat = lat2 - lat1
 
     dlon = np.radians(
-        lon - lon_grid
+        (lon - lon_grid + 180.0) % 360.0 - 180.0
     )
 
     a = (
@@ -97,6 +97,14 @@ pred = pd.read_csv(
         "target_date"
     ]
 )
+
+if FORECAST_DATE is None:
+    raise ValueError("Usage: python iceberg_to_risk.py YYYY-MM-DD")
+
+forecast_date = pd.Timestamp(FORECAST_DATE).normalize()
+pred = pred[pred["target_date"].dt.normalize() == forecast_date].copy()
+if pred.empty:
+    raise ValueError(f"No iceberg predictions found for {forecast_date.date()}.")
 
 lat = np.load(
     LAT_FILE
@@ -263,9 +271,11 @@ for row in pred.itertuples():
         ).astype(np.float32)
     )
 
-    iceberg_count[
-        distance <= radius
-    ] += 1
+    influence = distance <= radius
+    if not influence.any():
+        influence.flat[np.argmin(distance)] = True
+
+    iceberg_count[influence] += 1
 
 
 # ============================================================
@@ -375,7 +385,8 @@ np.savez_compressed(
 
     latitude=lat_grid,
 
-    longitude=lon_grid
+    longitude=lon_grid,
+    forecast_date=str(forecast_date.date())
 )
 
 

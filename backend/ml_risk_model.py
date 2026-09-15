@@ -16,14 +16,14 @@ class PolarMLRiskModel:
         self.model = RandomForestRegressor(n_estimators=15, max_depth=5, random_state=42, n_jobs=1)
         self._train_initial_model()
 
-    def _generate_polar_dataset(self, n_samples=800):
-        np.random.seed(42)
-        lats = np.random.uniform(-82.0, -55.0, n_samples)
-        lons = np.random.uniform(-180.0, 180.0, n_samples)
-        months = np.random.randint(1, 13, n_samples)
+    def _generate_polar_dataset(self, n_samples=800, seed=42):
+        rng = np.random.default_rng(seed)
+        lats = rng.uniform(-82.0, -55.0, n_samples)
+        lons = rng.uniform(-180.0, 180.0, n_samples)
+        months = rng.integers(1, 13, n_samples)
         
         surface_temps = -2.0 + (lats + 55.0) * 0.25 - np.cos((months - 1) * math.pi / 6.0) * 3.5
-        wind_speeds = np.random.uniform(10.0, 45.0, n_samples) + np.abs(lats + 60.0) * 0.4
+        wind_speeds = rng.uniform(10.0, 45.0, n_samples) + np.abs(lats + 60.0) * 0.4
         
         X = np.column_stack([lats, lons, months, surface_temps, wind_speeds])
         
@@ -40,7 +40,7 @@ class PolarMLRiskModel:
         return X, np.array(y)
 
     def _train_initial_model(self):
-        X_train, y_train = self._generate_polar_dataset()
+        X_train, y_train = self._generate_polar_dataset(n_samples=800, seed=42)
         self.model.fit(X_train, y_train)
         print(" [ML ENGINE] Polar Random Forest Regressor ready (Optimized for instant routing).")
 

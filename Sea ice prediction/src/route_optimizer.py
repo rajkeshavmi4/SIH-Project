@@ -67,7 +67,7 @@ def haversine(lat1, lon1, lat2, lon2):
     lon2 = math.radians(lon2)
 
     dlat = lat2 - lat1
-    dlon = lon2 - lon1
+    dlon = (lon2 - lon1 + 180.0) % 360.0 - 180.0
 
     a = (
         math.sin(dlat / 2) ** 2
@@ -537,7 +537,7 @@ def plot_route(
 # ============================================================
 
 print("=" * 65)
-print("POLARROUTE AI")
+print("INDRASETU")
 print("RISK-AWARE ANTARCTIC NAVIGATION")
 print("=" * 65)
 
@@ -947,7 +947,7 @@ if "balanced" in routes:
         routes["balanced"],
         start,
         goal,
-        "POLARROUTE AI | Balanced Risk-Aware Route",
+        "INDRASETU | Balanced Risk-Aware Route",
         "recommended_route.png"
     )
 
@@ -961,7 +961,7 @@ elif "safe" in routes:
         routes["safe"],
         start,
         goal,
-        "POLARROUTE AI | Safe Route",
+        "INDRASETU | Safe Route",
         "recommended_route.png"
     )
 
@@ -975,7 +975,7 @@ elif "baseline" in routes:
         routes["baseline"],
         start,
         goal,
-        "POLARROUTE AI | Baseline Route",
+        "INDRASETU | Baseline Route",
         "recommended_route.png"
     )
 

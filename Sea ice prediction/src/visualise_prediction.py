@@ -439,7 +439,7 @@ for a in ax:
 # ============================================================
 
 plt.suptitle(
-    "POLARROUTE AI Antarctic Sea-Ice Forecast",
+    "INDRASETU Antarctic Sea-Ice Forecast",
     fontsize=16
 )
 

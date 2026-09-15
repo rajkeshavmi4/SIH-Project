@@ -33,6 +33,19 @@ model.eval()
 abs_error = 0.0
 sq_error = 0.0
 pixels = 0
+baseline_abs_error = 0.0
+baseline_sq_error = 0.0
+baseline_pixels = 0
+
+for index in test_ds.indices:
+    previous = np.asarray(test_ds.data[index + 6], dtype=np.float32)
+    target = np.asarray(test_ds.data[index + 7], dtype=np.float32)
+    valid = np.isfinite(previous) & np.isfinite(target)
+    difference = previous[valid] - target[valid]
+
+    baseline_abs_error += np.abs(difference).sum()
+    baseline_sq_error += (difference ** 2).sum()
+    baseline_pixels += difference.size
 
 with torch.no_grad():
 
@@ -53,6 +66,8 @@ with torch.no_grad():
 
 mae = abs_error / pixels
 rmse = (sq_error / pixels) ** 0.5
+baseline_mae = baseline_abs_error / baseline_pixels
+baseline_rmse = (baseline_sq_error / baseline_pixels) ** 0.5
 
 print("\nTEST RESULTS")
 print("-" * 30)
@@ -61,18 +76,18 @@ print(f"ConvLSTM RMSE: {rmse:.6f}")
 
 print("\nBASELINE")
 print("-" * 30)
-print("Persistence MAE:  0.008508")
-print("Persistence RMSE: 0.032685")
+print(f"Persistence MAE:  {baseline_mae:.6f}")
+print(f"Persistence RMSE: {baseline_rmse:.6f}")
 
 print("\nIMPROVEMENT")
 
 mae_improvement = (
-    (0.008508 - mae) / 0.008508 * 100
+    (baseline_mae - mae) / baseline_mae * 100
 )
 
 rmse_improvement = (
-    (0.032685 - rmse) / 0.032685 * 100
+    (baseline_rmse - rmse) / baseline_rmse * 100
 )
 
-print(f"MAE improvement:  {mae_improvement:.2f}%")
-print(f"RMSE improvement: {rmse_improvement:.2f}%")
+print(f"MAE change vs persistence:  {mae_improvement:+.2f}%")
+print(f"RMSE change vs persistence: {rmse_improvement:+.2f}%")
